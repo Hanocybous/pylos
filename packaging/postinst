@@ -1,0 +1,10 @@
+#!/bin/bash
+set -e
+
+# Create the global CLI command
+ln -sf /opt/pylos/pylos.py /usr/bin/pylos
+
+# Reload systemd and start the daemon
+systemctl daemon-reload
+systemctl enable pylos.service
+systemctl restart pylos.service

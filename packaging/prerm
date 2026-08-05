@@ -1,0 +1,9 @@
+#!/bin/bash
+set -e
+
+# Stop and disable the daemon
+systemctl stop pylos.service || true
+systemctl disable pylos.service || true
+
+# Remove the global CLI command
+rm -f /usr/bin/pylos

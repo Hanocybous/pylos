@@ -1,0 +1,15 @@
+[Unit]
+Description=Pylos SSH Intrusion Daemon
+After=network.target ssh.service
+Wants=ssh.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/pylos daemon
+Restart=always
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

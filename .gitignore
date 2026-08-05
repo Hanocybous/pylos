@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+
+# Configurations & Databases
+config.json
+*.db
+*.sqlite
+
+# Build Artifacts
+*.deb
+build/

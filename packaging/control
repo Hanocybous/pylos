@@ -1,0 +1,11 @@
+Package: pylos
+Version: 1.0-1
+Section: admin
+Priority: optional
+Architecture: all
+Depends: python3, systemd, iptables, sqlite3
+Maintainer: Charilaos Chatzidimitriou
+Description: Pylos SSH Intrusion Daemon
+ An enterprise-grade SSH intrusion blocker and sysadmin CLI.
+ Monitors journalctl for failed SSH attempts and dynamically
+ manages firewall drops.
