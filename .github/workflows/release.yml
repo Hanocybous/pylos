@@ -1,0 +1,51 @@
+name: Build and Release Pylos .deb
+
+on:
+  push:
+    tags:
+      - 'v*.*.*' # Only triggers when you push a tag like v1.1.0
+
+permissions:
+  contents: write # Grants the bot permission to create a Release
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Extract Version
+        id: get_version
+        # Strips the 'v' (e.g., v1.1.0 becomes 1.1.0)
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      - name: Prepare Staging Directories
+        run: |
+          mkdir -p build/pylos_${{ env.VERSION }}_all/DEBIAN
+          mkdir -p build/pylos_${{ env.VERSION }}_all/opt/pylos
+          mkdir -p build/pylos_${{ env.VERSION }}_all/lib/systemd/system
+
+          # Copy files from repository into staging
+          cp pylos.py build/pylos_${{ env.VERSION }}_all/opt/pylos/
+          chmod 755 build/pylos_${{ env.VERSION }}_all/opt/pylos/pylos.py
+          
+          cp pylos.service build/pylos_${{ env.VERSION }}_all/lib/systemd/system/
+          
+          cp packaging/* build/pylos_${{ env.VERSION }}_all/DEBIAN/
+          chmod 755 build/pylos_${{ env.VERSION }}_all/DEBIAN/postinst
+          chmod 755 build/pylos_${{ env.VERSION }}_all/DEBIAN/prerm
+
+      - name: Update Version in Control File
+        run: |
+          sed -i "s/Version: .*/Version: ${{ env.VERSION }}/" build/pylos_${{ env.VERSION }}_all/DEBIAN/control
+
+      - name: Build .deb Package
+        run: |
+          dpkg-deb --root-owner-group --build build/pylos_${{ env.VERSION }}_all
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/pylos_${{ env.VERSION }}_all.deb
+          generate_release_notes: true
