@@ -30,15 +30,15 @@ DEFAULT_CONFIG = {
     "whitelist": ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "::1/128"]
 }
 
-# Regex to capture SSH authentication failures
+# Regex to capture SSH authentication failures (IPv4 and IPv6)
 FAIL_REGEX = re.compile(
-    r"Failed (?:password|publickey) for (?:invalid user )?\S+ from (?P<ip>\d{1,3}(?:\.\d{1,3}){3})"
+    r"Failed (?:password|publickey) for (?:invalid user )?\S+ from (?P<ip>[0-9a-fA-F\.\:]+)"
 )
 
 
 def ensure_environment():
     """Ensure required system directories
-	and configurations exist.
+        and configurations exist.
     """
     os.makedirs("/etc/pylos", exist_ok=True)
     os.makedirs("/var/lib/pylos", exist_ok=True)
@@ -50,7 +50,7 @@ def ensure_environment():
 
 def load_config() -> dict:
     """Load JSON config or
-	return defaults on failure.
+        return defaults on failure.
     """
     ensure_environment()
     try:
@@ -82,6 +82,9 @@ def is_whitelisted(ip_str: str, whitelist_networks: List[str]) -> bool:
             try:
                 if target in ipaddress.ip_network(net, strict=False):
                     return True
+            except TypeError:
+                # Ignore IPv4 vs IPv6 comparison mismatches
+                continue
             except ValueError:
                 continue
     except ValueError:
@@ -174,34 +177,46 @@ class DatabaseManager:
             # Vacuum the database to reclaim physical disk space
             conn.execute("VACUUM")
 
+
 class FirewallController:
     def __init__(self):
-        self._init_chain()
+        # Initialize both IPv4 and IPv6 chains
+        self._setup_chain("/usr/sbin/iptables")
+        self._setup_chain("/usr/sbin/ip6tables")
 
     def _run_cmd(self, cmd: List[str]) -> subprocess.CompletedProcess:
         # Input is strictly validated and passed as a safe list
-        return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)  # nosec B603
 
-    def _init_chain(self):
-        self._run_cmd(["/usr/sbin/iptables", "-N", CHAIN_NAME])
-        check = self._run_cmd(["/usr/sbin/iptables", "-C", "INPUT", "-j", CHAIN_NAME])
-        if check.returncode != 0:
-            self._run_cmd(["/usr/sbin/iptables", "-I", "INPUT", "1", "-j", CHAIN_NAME])
+    def _setup_chain(self, cmd: str):
+        # Create the chain and hook it into INPUT if it doesn't exist
+        if self._run_cmd([cmd, "-C", "INPUT", "-j", CHAIN_NAME]).returncode != 0:
+            self._run_cmd([cmd, "-N", CHAIN_NAME])  # nosec B603
+            self._run_cmd([cmd, "-I", "INPUT", "1", "-j", CHAIN_NAME])  # nosec B603
 
-    def ban_ip(self, ip: str) -> bool:
-        if not validate_ip(ip):
+    def ban_ip(self, ip_str: str) -> bool:
+        try:
+            ip_ver = ipaddress.ip_address(ip_str).version
+            cmd = "/usr/sbin/ip6tables" if ip_ver == 6 else "/usr/sbin/iptables"
+            
+            # Check if rule exists; if not, append it
+            if self._run_cmd([cmd, "-C", CHAIN_NAME, "-s", ip_str, "-j", "DROP"]).returncode != 0:
+                res = self._run_cmd([cmd, "-A", CHAIN_NAME, "-s", ip_str, "-j", "DROP"])
+                return res.returncode == 0
+            return True
+        except ValueError:
             return False
-        check = self._run_cmd(["/usr/sbin/iptables", "-C", CHAIN_NAME, "-s", ip, "-j", "DROP"])
-        if check.returncode != 0:
-            res = self._run_cmd(["/usr/sbin/iptables", "-A", CHAIN_NAME, "-s", ip, "-j", "DROP"])
+
+    def unban_ip(self, ip_str: str) -> bool:
+        try:
+            ip_ver = ipaddress.ip_address(ip_str).version
+            cmd = "/usr/sbin/ip6tables" if ip_ver == 6 else "/usr/sbin/iptables"
+            
+            res = self._run_cmd([cmd, "-D", CHAIN_NAME, "-s", ip_str, "-j", "DROP"])
             return res.returncode == 0
-        return True
-
-    def unban_ip(self, ip: str) -> bool:
-        if not validate_ip(ip):
+        except ValueError:
             return False
-        res = self._run_cmd(["/usr/sbin/iptables", "-D", CHAIN_NAME, "-s", ip, "-j", "DROP"])
-        return res.returncode == 0
+
 
 class SSHLogMonitor:
     """Tails systemd journal for SSH authentication failures."""
@@ -293,7 +308,7 @@ def run_daemon():
                     db.remove_ban(row["ip"])
             last_prune_check = now
 
-	# Prune old database logs once every 24 hours to prevent disk exhaustion
+        # Prune old database logs once every 24 hours to prevent disk exhaustion
         if now - last_db_prune > 86400:
             print("[SYSTEM] Executing daily database maintenance and pruning...")
             db.prune_old_logs(retention_days=7)
@@ -307,7 +322,7 @@ def cli_status():
     cfg = load_config()
 
     print("==================================================")
-    print("           PYLOS SYSTEM STATUS             ")
+    print("            PYLOS SYSTEM STATUS             ")
     print("==================================================")
     print(f"Max Attempts Allowed : {cfg['max_attempts']}")
     print(f"Sliding Window      : {cfg['window_seconds']}s")
@@ -328,12 +343,12 @@ def cli_list():
         print("No active IP bans.")
         return
 
-    print(f"{'IP ADDRESS':<18} {'BANNED AT':<20} {'REMAINING (MIN)':<16} {'REASON'}")
-    print("-" * 70)
+    print(f"{'IP ADDRESS':<39} {'BANNED AT':<20} {'REMAINING (MIN)':<16} {'REASON'}")
+    print("-" * 90)
     for row in bans:
         banned_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(row["banned_at"]))
         rem_min = max(0, int((row["expires_at"] - now) / 60))
-        print(f"{row['ip']:<18} {banned_str:<20} {rem_min:<16} {row['reason']}")
+        print(f"{row['ip']:<39} {banned_str:<20} {rem_min:<16} {row['reason']}")
 
 
 def cli_ban(ip: str, duration: Optional[int]):
@@ -343,7 +358,7 @@ def cli_ban(ip: str, duration: Optional[int]):
 
     ip_valid = validate_ip(ip)
     if not ip_valid:
-        print(f"[ERROR] '{ip}' is not a valid IPv4 address.", file=sys.stderr)
+        print(f"[ERROR] '{ip}' is not a valid IP address.", file=sys.stderr)
         sys.exit(1)
 
     cfg = load_config()
@@ -366,7 +381,7 @@ def cli_unban(ip: str):
 
     ip_valid = validate_ip(ip)
     if not ip_valid:
-        print(f"[ERROR] '{ip}' is not a valid IPv4 address.", file=sys.stderr)
+        print(f"[ERROR] '{ip}' is not a valid IP address.", file=sys.stderr)
         sys.exit(1)
 
     fw = FirewallController()
