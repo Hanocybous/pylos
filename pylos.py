@@ -186,7 +186,11 @@ class FirewallController:
 
     def _run_cmd(self, cmd: List[str]) -> subprocess.CompletedProcess:
         # Input is strictly validated and passed as a safe list
-        return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)  # nosec B603
+<<<<<<< Updated upstream
+        return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+=======
+        return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)  # nosec B603
+>>>>>>> Stashed changes
 
     def _setup_chain(self, cmd: str):
         # Create the chain and hook it into INPUT if it doesn't exist
