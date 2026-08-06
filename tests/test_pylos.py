@@ -1,6 +1,5 @@
 import os
 import sys
-import pytest
 from unittest.mock import patch, MagicMock
 
 # Insert the parent directory into the path so pytest can import pylos.py
@@ -28,7 +27,7 @@ def test_is_whitelisted():
 def test_firewall_ban_ip(mock_run):
     # Dynamic Mock: If checking for a rule (-C), pretend it doesn't exist (return 1). 
     # For all other commands (-N, -I, -A), pretend they succeeded (return 0).
-    def mock_subprocess(cmd, **kwargs):
+    def mock_subprocess(cmd, **_kwargs):
         if "-C" in cmd:
             return MagicMock(returncode=1)
         return MagicMock(returncode=0)

@@ -15,7 +15,7 @@ import subprocess  # nosec B404
 import sys
 import time
 from collections import defaultdict
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional
 
 # System Paths
 CONFIG_PATH = "/etc/pylos/config.json"
@@ -44,7 +44,7 @@ def ensure_environment():
     os.makedirs("/var/lib/pylos", exist_ok=True)
 
     if not os.path.exists(CONFIG_PATH):
-        with open(CONFIG_PATH, "w") as f:
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(DEFAULT_CONFIG, f, indent=4)
 
 
@@ -54,13 +54,13 @@ def load_config() -> dict:
     """
     ensure_environment()
     try:
-        with open(CONFIG_PATH, "r") as f:
+        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             cfg = json.load(f)
             # Fill missing keys from default config
             for k, v in DEFAULT_CONFIG.items():
                 cfg.setdefault(k, v)
             return cfg
-    except Exception as e:
+    except (OSError, json.JSONDecodeError) as e:
         print(f"[WARN] Failed to load {CONFIG_PATH}: {e}. Using defaults.", file=sys.stderr)
         return DEFAULT_CONFIG
 
@@ -180,7 +180,11 @@ class FirewallController:
 
     def _run_cmd(self, cmd: List[str]) -> subprocess.CompletedProcess:
         # Input is strictly validated and passed as a safe list
+<<<<<<< Updated upstream
         return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+=======
+        return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)  # nosec B603
+>>>>>>> Stashed changes
 
     def _init_chain(self):
         self._run_cmd(["/usr/sbin/iptables", "-N", CHAIN_NAME])
@@ -246,7 +250,7 @@ def run_daemon():
             fw.unban_ip(row["ip"])
             db.remove_ban(row["ip"])
 
-    def handle_shutdown(signum, frame):
+    def handle_shutdown(_signum, _frame):
         print("\n[SYSTEM] Daemon shutting down...")
         monitor.terminate()
         sys.exit(0)
