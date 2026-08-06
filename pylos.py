@@ -32,7 +32,7 @@ DEFAULT_CONFIG = {
 
 # Regex to capture SSH authentication failures (IPv4 and IPv6)
 FAIL_REGEX = re.compile(
-    r"Failed (?:password|publickey) for (?:invalid user )?\S+ from (?P[0-9a-fA-F\.\:]+)"
+    r"Failed (?:password|publickey) for (?:invalid user )?\S+ from (?P<ip>[0-9a-fA-F\.\:]+)"
 )
 
 def ensure_environment():
