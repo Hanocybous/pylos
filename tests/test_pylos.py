@@ -26,21 +26,24 @@ def test_is_whitelisted():
 
 @patch('pylos.subprocess.run')
 def test_firewall_ban_ip(mock_run):
-    # Setup: Tell the mock to pretend the iptables check (-C) failed (rule doesn't exist)
-    mock_run.return_value = MagicMock(returncode=1)
+    # Dynamic Mock: If checking for a rule (-C), pretend it doesn't exist (return 1). 
+    # For all other commands (-N, -I, -A), pretend they succeeded (return 0).
+    def mock_subprocess(cmd, **kwargs):
+        if "-C" in cmd:
+            return MagicMock(returncode=1)
+        return MagicMock(returncode=0)
+        
+    mock_run.side_effect = mock_subprocess
     
     fw = pylos.FirewallController()
-    
-    # Setup: Tell the mock to pretend the iptables append (-A) succeeded
-    mock_run.return_value = MagicMock(returncode=0)
-    
     result = fw.ban_ip("1.2.3.4")
     
     # The function should return True (success)
     assert result is True
     
-    # Verify the script attempted to execute the correct system command
-    mock_run.assert_called_with(
+    # Use assert_any_call instead of assert_called_with because 
+    # subprocess.run is called multiple times by the script.
+    mock_run.assert_any_call(
         ["/usr/sbin/iptables", "-A", "PYLOS", "-s", "1.2.3.4", "-j", "DROP"],
         stdout=pylos.subprocess.PIPE,
         stderr=pylos.subprocess.PIPE,
