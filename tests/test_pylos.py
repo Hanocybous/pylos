@@ -43,7 +43,7 @@ def test_firewall_ban_ip(mock_run):
         ["/usr/sbin/iptables", "-A", "PYLOS", "-s", "1.2.3.4", "-j", "DROP"],
         stdout=pylos.subprocess.PIPE,
         stderr=pylos.subprocess.PIPE,
-        text=True
+        text=True, check=False
     )
 
     # 2. Test IPv6 Routing
@@ -53,5 +53,5 @@ def test_firewall_ban_ip(mock_run):
         ["/usr/sbin/ip6tables", "-A", "PYLOS", "-s", "2001:db8::1", "-j", "DROP"],
         stdout=pylos.subprocess.PIPE,
         stderr=pylos.subprocess.PIPE,
-        text=True
+        text=True, check=False
     )
