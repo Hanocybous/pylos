@@ -180,11 +180,7 @@ class FirewallController:
 
     def _run_cmd(self, cmd: List[str]) -> subprocess.CompletedProcess:
         # Input is strictly validated and passed as a safe list
-<<<<<<< Updated upstream
         return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-=======
-        return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)  # nosec B603
->>>>>>> Stashed changes
 
     def _init_chain(self):
         self._run_cmd(["/usr/sbin/iptables", "-N", CHAIN_NAME])
