@@ -38,7 +38,9 @@ FAIL_REGEX = re.compile(
 
 def ensure_environment():
     """Ensure required system directories and configurations exist."""
-    os.makedirs("/etc/pylos", exist_ok=True)
+    config_dir = os.path.dirname(CONFIG_PATH)
+    if config_dir:
+        os.makedirs(config_dir, exist_ok=True)
     os.makedirs("/var/lib/pylos", exist_ok=True)
 
     if not os.path.exists(CONFIG_PATH):
