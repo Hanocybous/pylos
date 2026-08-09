@@ -68,8 +68,8 @@ def test_load_config(tmp_path):
     }
     config_file.write_text(json.dumps(fake_config))
     
-    # Patch CONFIG_PATH so it doesn't write to /etc/pylos on the runner
-    with patch('pylos.CONFIG_PATH', str(config_file)):
+    # Patch filesystem-touching setup and CONFIG_PATH so test stays unprivileged
+    with patch('pylos.ensure_environment'), patch('pylos.CONFIG_PATH', str(config_file)):
         cfg = pylos.load_config()
         
         assert cfg.get("max_attempts") == 7
