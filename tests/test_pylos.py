@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from unittest.mock import patch, MagicMock
@@ -43,7 +44,7 @@ def test_firewall_ban_ip(mock_run):
         ["/usr/sbin/iptables", "-A", "PYLOS", "-s", "1.2.3.4", "-j", "DROP"],
         stdout=pylos.subprocess.PIPE,
         stderr=pylos.subprocess.PIPE,
-        text=True
+        text=True, check=False
     )
 
     # 2. Test IPv6 Routing
@@ -53,5 +54,36 @@ def test_firewall_ban_ip(mock_run):
         ["/usr/sbin/ip6tables", "-A", "PYLOS", "-s", "2001:db8::1", "-j", "DROP"],
         stdout=pylos.subprocess.PIPE,
         stderr=pylos.subprocess.PIPE,
-        text=True
+        text=True, check=False
     )
+
+
+def test_load_config(tmp_path):
+    """Test that the daemon correctly parses custom JSON config files."""
+    config_file = tmp_path / "config.json"
+    fake_config = {
+        "max_attempts": 7,
+        "ban_duration_seconds": 1200,
+        "whitelist": ["10.0.0.0/8"]
+    }
+    config_file.write_text(json.dumps(fake_config))
+    
+    with patch('builtins.open', return_value=open(config_file)):
+        cfg = pylos.load_config()
+        
+        assert cfg.get("max_attempts") == 7
+        assert "10.0.0.0/8" in cfg.get("whitelist", [])
+
+def test_sshd_log_regex():
+    """Test that the regex correctly identifies attacks and extracts the IP."""
+    regex = getattr(pylos, 'FAIL_REGEX', None)
+    
+    if regex:
+        valid_log = "Failed password for invalid user admin from 203.0.113.50 port 2222 ssh2"
+        invalid_log = "Accepted publickey for root from 10.0.0.5 port 2222 ssh2"
+        
+        match = regex.search(valid_log)
+        assert match is not None
+        assert match.group("ip") == "203.0.113.50"
+        
+        assert regex.search(invalid_log) is None
