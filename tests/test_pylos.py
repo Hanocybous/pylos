@@ -1,4 +1,5 @@
 import json
+import time
 import os
 import sys
 from unittest.mock import patch, MagicMock
@@ -88,3 +89,37 @@ def test_sshd_log_regex():
         assert match.group("ip") == "203.0.113.50"
         
         assert regex.search(invalid_log) is None
+
+def test_default_config_progressive_keys():
+    """Ensure progressive banning keys exist in the default config."""
+    assert "progressive_banning" in pylos.DEFAULT_CONFIG
+    assert pylos.DEFAULT_CONFIG["progressive_banning"] is True
+    assert pylos.DEFAULT_CONFIG["progressive_multiplier"] == 2.0
+    assert pylos.DEFAULT_CONFIG["progressive_lookback_seconds"] == 86400
+
+def test_progressive_ban_count(tmp_path):
+    """Test that the database correctly counts recent previous bans for an IP."""
+    db_file = tmp_path / "pylos.db"
+    
+    with patch('pylos.DB_PATH', str(db_file)):
+        db = pylos.DatabaseManager(db_path=str(db_file))
+        now = time.time()
+        
+        # Add bans to the history
+        db.add_ban("192.168.1.100", now - 100000, 3600)  # Outside 24h (86400s) window
+        db.add_ban("192.168.1.100", now - 3600, 3600)    # Inside window
+        db.add_ban("192.168.1.100", now - 1800, 3600)    # Inside window
+        db.add_ban("10.0.0.5", now - 1800, 3600)         # Different IP inside window
+        
+        # Check lookback counts
+        lookback_time = now - 86400
+        count_192 = db.get_previous_ban_count("192.168.1.100", lookback_time)
+        count_10 = db.get_previous_ban_count("10.0.0.5", lookback_time)
+        count_clean = db.get_previous_ban_count("172.16.0.1", lookback_time)
+        
+        # Assertions
+        assert count_192 == 2  # Only the 2 recent bans should be counted
+        assert count_10 == 1
+        assert count_clean == 0
+
+

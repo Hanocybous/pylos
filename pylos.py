@@ -28,6 +28,9 @@ DEFAULT_CONFIG = {
     "max_attempts": 5,
     "window_seconds": 600,
     "ban_duration_seconds": 3600,
+    "progressive_banning": True,           # Enable progressive bans
+    "progressive_multiplier": 2.0,         # Double the time for each repeat offense
+    "progressive_lookback_seconds": 86400, # Look back 24 hours for past bans
     "whitelist": ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "::1/128"]
 }
 
@@ -85,8 +88,8 @@ def is_whitelisted(ip_str: str, whitelist_networks: List[str]) -> bool:
 class DatabaseManager:
     """Manages SQLite storage for ban history, active bans, and analytics."""
 
-    def __init__(self, db_path: str = DB_PATH):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        self.db_path = db_path or DB_PATH
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
@@ -141,6 +144,15 @@ class DatabaseManager:
                 "UPDATE ban_history SET unbanned_at = ? WHERE ip = ? AND unbanned_at IS NULL",
                 (now, ip)
             )
+
+    def get_previous_ban_count(self, ip: str, since_timestamp: float) -> int:
+        """Count how many times an IP was banned since a specific timestamp."""
+        with self._get_connection() as conn:
+            result = conn.execute(
+                "SELECT COUNT(*) FROM ban_history WHERE ip = ? AND banned_at >= ?",
+                (ip, since_timestamp)
+            ).fetchone()
+            return result[0] if result else 0
 
     def get_active_bans(self) -> List[sqlite3.Row]:
         with self._get_connection() as conn:
@@ -280,9 +292,21 @@ def run_daemon():
                 failures[ip] = [t for t in failures[ip] if (now - t) <= cfg["window_seconds"]]
 
                 if len(failures[ip]) >= cfg["max_attempts"]:
+                    ban_duration = cfg["ban_duration_seconds"]
+                    
+                    # Calculate progressive ban duration
+                    if cfg.get("progressive_banning", False):
+                        lookback_time = now - cfg.get("progressive_lookback_seconds", 86400)
+                        past_bans = db.get_previous_ban_count(ip, lookback_time)
+                        
+                        if past_bans > 0:
+                            multiplier = cfg.get("progressive_multiplier", 2.0) ** past_bans
+                            ban_duration = int(ban_duration * multiplier)
+                            print(f"[BAN] Repeat offender ({past_bans} prior bans). Scaling duration to {ban_duration}s.")
+                    
                     print(f"[BAN] Threshold reached! Banning IP: {ip}")
                     if fw.ban_ip(ip):
-                        db.add_ban(ip, now, cfg["ban_duration_seconds"])
+                        db.add_ban(ip, now, ban_duration)
                     failures[ip].clear()
 
         if now - last_prune_check > 15:
