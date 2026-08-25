@@ -13,10 +13,12 @@ import re
 import signal
 import sqlite3
 import subprocess  # nosec B404
+import urllib.request
 import sys
 import time
 from collections import defaultdict
 from typing import Dict, List, Optional
+from functools import lru_cache
 
 # System Paths
 CONFIG_PATH = "/etc/pylos/config.json"
@@ -31,7 +33,10 @@ DEFAULT_CONFIG = {
     "progressive_banning": True,           # Enable progressive bans
     "progressive_multiplier": 2.0,         # Double the time for each repeat offense
     "progressive_lookback_seconds": 86400, # Look back 24 hours for past bans
-    "whitelist": ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "::1/128"]
+    "whitelist": ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "::1/128"],
+    "geoip_blocking": True,
+    "blocked_countries": ["CN", "RU"], # ISO 2-letter codes to block instantly
+    "allowed_countries": [],           # If not empty, blocks EVERYTHING else
 }
 
 # Regex to capture SSH authentication failures (IPv4 and IPv6)
@@ -84,6 +89,20 @@ def is_whitelisted(ip_str: str, whitelist_networks: List[str]) -> bool:
     except ValueError:
         pass
     return False
+
+@lru_cache(maxsize=2048)
+def get_country_code(ip: str) -> str:
+    """Fetch and cache the 2-letter ISO country code for an IP."""
+    if ip.startswith(("192.168.", "10.", "172.", "127.", "::1")):
+        return "LOCAL"
+    try:
+        url = f"http://ip-api.com/json/{ip}?fields=countryCode"
+        req = urllib.request.Request(url, headers={'User-Agent': 'pylos-daemon'})
+        with urllib.request.urlopen(req, timeout=2) as response:
+            data = json.loads(response.read().decode())
+            return data.get("countryCode", "UNKNOWN")
+    except Exception:
+        return "UNKNOWN"
 
 class DatabaseManager:
     """Manages SQLite storage for ban history, active bans, and analytics."""
@@ -288,22 +307,43 @@ def run_daemon():
                 print(f"[ATTACK] Failed SSH login attempt from: {ip}")
                 db.record_attack(ip, now)
 
+                if cfg.get("geoip_blocking", False):
+                    cc = get_country_code(ip)
+                    blocked = cfg.get("blocked_countries", [])
+                    allowed = cfg.get("allowed_countries", [])
+
+                    is_geoip_banned = False
+                    reason = ""
+
+                    if allowed and cc not in allowed and cc not in ["LOCAL", "UNKNOWN"]:
+                        is_geoip_banned = True
+                        reason = f"GeoIP Block (Not in allowed list: {cc})"
+                    elif cc in blocked:
+                        is_geoip_banned = True
+                        reason = f"GeoIP Block (Country: {cc})"
+
+                    if is_geoip_banned:
+                        print(f"[BAN] Instant GeoIP Block! {ip} from {cc}")
+                        if fw.ban_ip(ip):
+                            db.add_ban(ip, now, 315360000, reason=reason) # Ban for 10 years
+                        continue # Skip normal attempt counting
+
                 failures[ip].append(now)
                 failures[ip] = [t for t in failures[ip] if (now - t) <= cfg["window_seconds"]]
 
                 if len(failures[ip]) >= cfg["max_attempts"]:
                     ban_duration = cfg["ban_duration_seconds"]
-                    
+
                     # Calculate progressive ban duration
                     if cfg.get("progressive_banning", False):
                         lookback_time = now - cfg.get("progressive_lookback_seconds", 86400)
                         past_bans = db.get_previous_ban_count(ip, lookback_time)
-                        
+
                         if past_bans > 0:
                             multiplier = cfg.get("progressive_multiplier", 2.0) ** past_bans
                             ban_duration = int(ban_duration * multiplier)
                             print(f"[BAN] Repeat offender ({past_bans} prior bans). Scaling duration to {ban_duration}s.")
-                    
+
                     print(f"[BAN] Threshold reached! Banning IP: {ip}")
                     if fw.ban_ip(ip):
                         db.add_ban(ip, now, ban_duration)

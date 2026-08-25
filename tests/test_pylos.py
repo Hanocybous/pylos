@@ -122,4 +122,27 @@ def test_progressive_ban_count(tmp_path):
         assert count_10 == 1
         assert count_clean == 0
 
+def test_geoip_local_ips():
+    """Ensure local IPs bypass the HTTP request."""
+    assert pylos.get_country_code("192.168.1.50") == "LOCAL"
+    assert pylos.get_country_code("10.0.0.1") == "LOCAL"
+    assert pylos.get_country_code("127.0.0.1") == "LOCAL"
 
+def test_geoip_api_mock():
+    """Test GeoIP lookup by mocking the external HTTP request."""
+    # Clear the cache to ensure a fresh test environment
+    pylos.get_country_code.cache_clear()
+    
+    with patch('urllib.request.urlopen') as mock_urlopen:
+        # Create a fake HTTP response
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps({"countryCode": "GR"}).encode('utf-8')
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+        
+        # Request an IP
+        result = pylos.get_country_code("8.8.8.8")
+        assert result == "GR"
+        
+        # Request it again to test the @lru_cache (urlopen should only be called once)
+        pylos.get_country_code("8.8.8.8")
+        assert mock_urlopen.call_count == 1
