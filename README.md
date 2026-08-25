@@ -1,17 +1,31 @@
-# Pylos: SSH Intrusion Autoblocker
+# 🛡️ Pylos
 
-Pylos is a production-grade, Python-based security daemon for Debian/Ubuntu servers. It tails `journalctl` for failed SSH authentication attempts and dynamically manages IPTables firewall rules to drop malicious IPs.
+**Pylos** is a modern, lightweight, and production-grade SSH intrusion prevention daemon for Debian and Ubuntu environments. 
 
-## Features
-* **Zero-Dependency Core:** Uses standard Python libraries (SQLite3, IPAddress, Subprocess).
-* **Database Persistence:** Active bans and historical logs survive server reboots.
-* **CLI Management:** Built-in command line interface (`pylos status`, `pylos ban`, `pylos list`).
-* **Subnet Whitelisting:** Protects local and internal network ranges from accidental lockouts.
-* **Discord Webhooks:** Sends rich embed alerts upon ban execution.
-* **Self-Pruning:** Automatically cleans old logs to prevent disk exhaustion (DoS protection).
+Written in Python, Pylos actively monitors `sshd` logs in real-time and dynamically updates `iptables` and `ip6tables` to instantly block brute-force attacks. Designed with modern server administration in mind, it features zero-downtime configuration reloads, GeoIP instant blocking, and progressive exponential bans for persistent botnets.
+
+## Key Features
+
+* **Dual-Stack Protection:** Native, automated firewall routing for both IPv4 and IPv6 traffic.
+* **Instant GeoIP Blocking:** Drop traffic from specific countries on the *very first* failed attempt (or allow only specific countries), powered by lightning-fast local memory caching.
+* **Progressive Exponential Bans:** Remembers repeat offenders. If an IP attacks again within 24 hours, its ban time doubles automatically.
+* **Zero-Downtime Reloads:** Update your whitelist or config and apply it instantly via `SIGHUP` (`systemctl reload pylos`) without dropping the active log-monitoring threads.
+* **Local SQLite Tracking:** Fast and persistent storage for ban history and attack analytics.
+* **Native Systemd Integration:** Runs as a standard background service with auto-restart capabilities.
+
+---
 
 ## Installation
-You can install Pylos using the pre-compiled `.deb` package from the Releases tab:
+
+The easiest way to install Pylos is via the pre-compiled Debian package available on the [Releases](https://github.com/Hanocybous/pylos/releases) page.
+
 ```bash
-sudo apt install ./pylos_1.0-1_all.deb
-```
+# 1. Download the latest release (update the version number as needed)
+wget [https://github.com/Hanocybous/pylos/releases/download/v1.4.0/pylos_1.4.0_all.deb](https://github.com/Hanocybous/pylos/releases/download/v1.4.0/pylos_1.4.0_all.deb)
+
+# 2. Install the package
+sudo dpkg -i pylos_1.4.0_all.deb
+sudo apt-get install -f
+
+# 3. Enable and start the daemon
+sudo systemctl enable --now pylos
