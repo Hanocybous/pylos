@@ -1,0 +1,12 @@
+{
+  "max_attempts": 5,
+  "window_seconds": 600,
+  "ban_duration_seconds": 3600,
+  "progressive_banning": true,
+  "progressive_multiplier": 2.0,
+  "progressive_lookback_seconds": 86400,
+  "whitelist": ["127.0.0.1/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "::1/128"],
+  "geoip_blocking": true,
+  "blocked_countries": ["CN", "RU"],
+  "allowed_countries": []
+}
