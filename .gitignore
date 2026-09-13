@@ -10,3 +10,9 @@ config.json
 # Build Artifacts
 *.deb
 build/
+
+# Local / editor / coverage
+.coverage
+.idea/
+.venv/
+.env

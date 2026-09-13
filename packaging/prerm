@@ -1,9 +1,19 @@
 #!/bin/bash
 set -e
 
-# Stop and disable the daemon
-systemctl stop pylos.service || true
-systemctl disable pylos.service || true
+# Pre-removal script for Pylos (deb package)
+# Be tolerant if systemd or files are missing
 
-# Remove the global CLI command
-rm -f /usr/bin/pylos
+BIN_PATH=/usr/bin/pylos
+SYSTEMD_UNIT=pylos.service
+
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl stop "$SYSTEMD_UNIT" >/dev/null 2>&1 || true
+  systemctl disable "$SYSTEMD_UNIT" >/dev/null 2>&1 || true
+  systemctl daemon-reload >/dev/null 2>&1 || true
+fi
+
+# Remove the global CLI symlink if present
+rm -f "$BIN_PATH" || true
+
+exit 0
