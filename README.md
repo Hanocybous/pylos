@@ -21,10 +21,10 @@ The easiest way to install Pylos is via the pre-compiled Debian package availabl
 
 ```bash
 # 1. Download the latest release (update the version number as needed)
-wget https://github.com/Hanocybous/pylos/releases/download/v1.4.0/pylos_1.4.0_all.deb
+wget https://github.com/Hanocybous/pylos/releases/download/v1.5.0/pylos_1.5.0_all.deb
 
 # 2. Install it (pulls in dependencies, then enables and starts the service)
-sudo apt install ./pylos_1.4.0_all.deb
+sudo apt install ./pylos_1.5.0_all.deb
 ```
 
 ## Usage
