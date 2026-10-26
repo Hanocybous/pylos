@@ -154,12 +154,15 @@ def test_geoip_public_172_is_not_local():
         assert pylos.get_country_code("172.217.0.1") == "UNKNOWN"
     assert pylos.get_country_code("172.16.0.1") == "LOCAL"
 
-def test_monitor_exits_when_journalctl_dies():
-    """EOF from journalctl must stop the daemon instead of busy-looping."""
+def test_monitor_returns_every_line_of_a_burst_then_exits_on_eof():
+    """All lines of one chunk must be returned (none stranded), and EOF must stop the daemon."""
     monitor = pylos.SSHLogMonitor.__new__(pylos.SSHLogMonitor)
     monitor.process = MagicMock()
-    monitor.process.stdout.readline.return_value = ""
-    with patch('pylos.select.select', return_value=([monitor.process.stdout], [], [])):
+    monitor._buf = b""  # pylint: disable=protected-access
+    with patch('pylos.select.select', return_value=([monitor.process.stdout], [], [])), \
+         patch('pylos.os.read', side_effect=[b"line1\nline2\nli", b"ne3\n", b""]) as mock_read:
+        assert [monitor.read_line() for _ in range(3)] == ["line1", "line2", "line3"]
+        assert mock_read.call_count == 2  # line2 came from the buffer, not a new read
         try:
             monitor.read_line()
             assert False, "expected SystemExit"

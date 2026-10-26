@@ -8,7 +8,7 @@ Packaging scripts for Pylos
 Scripts in this folder:
 
 - `control` - Debian metadata. `Version` is overwritten from the git tag at build time.
-- `postinst` - links `/usr/bin/pylos`, reloads systemd, enables and starts the service.
+- `postinst` - links `/usr/bin/pylos`, reloads systemd, enables and (re)starts the service so upgrades run the new code.
   Config is not installed here: Pylos writes `/etc/pylos/config.json` with defaults on first run and never overwrites it.
 - `prerm` - stops and disables the service and removes the symlink. Best-effort; never deletes config or the database.
 
