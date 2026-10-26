@@ -12,5 +12,5 @@ sudo systemctl enable --now pylos
 
 Notes:
 - ExecStart expects `/usr/bin/pylos`; adjust it for a manual install (e.g. `/usr/bin/python3 /path/to/pylos.py daemon`).
-- For least-privilege operation consider packaging Pylos so it can run with CAP_NET_ADMIN instead of full root.
+- The unit is sandboxed: only CAP_NET_ADMIN/CAP_NET_RAW, read-only system, writable /etc/pylos, /var/lib/pylos and /run (iptables lock). Check with `systemd-analyze security pylos`.
 
