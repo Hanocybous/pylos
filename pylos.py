@@ -238,19 +238,23 @@ class SSHLogMonitor:
             ["/usr/bin/journalctl", "-t", "sshd", "-t", "sshd-session", "-t", "sshd-auth",
              "-f", "-n", "0", "-o", "cat"],
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1
+            bufsize=0  # raw pipe: buffered readline() hides queued lines from select()
         )
+        self._buf = b""
 
     def read_line(self, timeout=1.0) -> str:
-        ready, _, _ = select.select([self.process.stdout], [], [], timeout)
-        if ready:
-            line = self.process.stdout.readline()
-            if not line:  # EOF: journalctl died; exit so systemd restarts us instead of spinning
+        if b"\n" not in self._buf:
+            ready, _, _ = select.select([self.process.stdout], [], [], timeout)
+            if not ready:
+                return ""
+            chunk = os.read(self.process.stdout.fileno(), 65536)
+            if not chunk:  # EOF: journalctl died; exit so systemd restarts us instead of spinning
                 sys.exit("[FATAL] journalctl exited unexpectedly.")
-            return line
-        return ""
+            self._buf += chunk
+            if b"\n" not in self._buf:
+                return ""
+        line, _, self._buf = self._buf.partition(b"\n")
+        return line.decode("utf-8", errors="replace")
 
     def terminate(self):
         if self.process:
