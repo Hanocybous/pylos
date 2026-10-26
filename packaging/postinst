@@ -8,7 +8,9 @@ ln -sf /opt/pylos/pylos.py /usr/bin/pylos
 
 if command -v systemctl >/dev/null 2>&1; then
   systemctl daemon-reload || true
-  systemctl enable --now pylos.service >/dev/null 2>&1 || systemctl restart pylos.service >/dev/null 2>&1 || true
+  systemctl enable pylos.service >/dev/null 2>&1 || true
+  # restart, not just start: on upgrade the old code would otherwise keep running
+  systemctl restart pylos.service >/dev/null 2>&1 || true
 fi
 
 exit 0
