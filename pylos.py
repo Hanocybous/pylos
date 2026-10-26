@@ -39,9 +39,13 @@ DEFAULT_CONFIG = {
     "allowed_countries": [],           # If not empty, blocks EVERYTHING else
 }
 
-# Regex to capture SSH authentication failures (IPv4 and IPv6)
+# Regex to capture SSH authentication failures (IPv4 and IPv6).
+# Unknown usernames and pre-auth disconnects count too: key-only servers never log "Failed password".
 FAIL_REGEX = re.compile(
-    r"Failed (?:password|publickey) for (?:invalid user )?\S+ from (?P<ip>[0-9a-fA-F\.\:]+)"
+    r"(?:Failed (?:password|publickey) for (?:invalid user )?\S+ from"
+    r"|Invalid user \S* from"
+    r"|(?:Connection closed by|Disconnected from) authenticating user \S+)"
+    r" (?P<ip>[0-9a-fA-F\.\:]+)"
 )
 
 def ensure_environment():

@@ -45,6 +45,8 @@ GeoIP blocking (on by default) sends each attacking IP to `ip-api.com` over HTTP
 
 Ban history is stored in `/var/lib/pylos/pylos.db`.
 
+`max_attempts` counts sshd log events, not connections. Unknown usernames and pre-auth disconnects count as well, so one bad login can count twice (for example `Invalid user` followed by `Failed password`).
+
 ## Development
 
 ```bash

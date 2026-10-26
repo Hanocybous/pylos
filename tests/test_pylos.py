@@ -165,3 +165,18 @@ def test_monitor_exits_when_journalctl_dies():
             assert False, "expected SystemExit"
         except SystemExit:
             pass
+
+def test_sshd_log_regex_preauth_lines():
+    """Bots on key-only servers never reach 'Failed password'; these lines must still count."""
+    lines = {
+        "Invalid user admin from 203.0.113.9 port 51234": "203.0.113.9",
+        "Invalid user  from 2001:db8::9 port 51234": "2001:db8::9",
+        "Connection closed by authenticating user root 203.0.113.9 port 22 [preauth]": "203.0.113.9",
+        "Disconnected from authenticating user root 203.0.113.9 port 22 [preauth]": "203.0.113.9",
+    }
+    for line, ip in lines.items():
+        match = pylos.FAIL_REGEX.search(line)
+        assert match and match.group("ip") == ip, line
+    # Plain scanners and successful logins are not attacks
+    assert pylos.FAIL_REGEX.search("Connection closed by 203.0.113.9 port 22 [preauth]") is None
+    assert pylos.FAIL_REGEX.search("Accepted publickey for root from 10.0.0.5 port 22 ssh2") is None
