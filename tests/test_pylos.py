@@ -146,3 +146,22 @@ def test_geoip_api_mock():
         # Request it again to test the @lru_cache (urlopen should only be called once)
         pylos.get_country_code("8.8.8.8")
         assert mock_urlopen.call_count == 1
+
+def test_geoip_public_172_is_not_local():
+    """Only 172.16.0.0/12 is private; other 172.x addresses must still be looked up."""
+    pylos.get_country_code.cache_clear()
+    with patch('urllib.request.urlopen', side_effect=OSError):
+        assert pylos.get_country_code("172.217.0.1") == "UNKNOWN"
+    assert pylos.get_country_code("172.16.0.1") == "LOCAL"
+
+def test_monitor_exits_when_journalctl_dies():
+    """EOF from journalctl must stop the daemon instead of busy-looping."""
+    monitor = pylos.SSHLogMonitor.__new__(pylos.SSHLogMonitor)
+    monitor.process = MagicMock()
+    monitor.process.stdout.readline.return_value = ""
+    with patch('pylos.select.select', return_value=([monitor.process.stdout], [], [])):
+        try:
+            monitor.read_line()
+            assert False, "expected SystemExit"
+        except SystemExit:
+            pass
