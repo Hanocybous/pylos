@@ -234,7 +234,9 @@ class FirewallController:
 class SSHLogMonitor:
     def __init__(self):
         self.process = subprocess.Popen(
-            ["/usr/bin/journalctl", "-t", "sshd", "-u", "ssh", "-u", "sshd", "-f", "-n", "0", "-o", "cat"],
+            # Match by identifier only: -t and -u are ANDed, and OpenSSH 9.8+ logs as sshd-session/sshd-auth.
+            ["/usr/bin/journalctl", "-t", "sshd", "-t", "sshd-session", "-t", "sshd-auth",
+             "-f", "-n", "0", "-o", "cat"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
