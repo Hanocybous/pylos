@@ -49,7 +49,7 @@ def ensure_environment():
     config_dir = os.path.dirname(CONFIG_PATH)
     if config_dir:
         os.makedirs(config_dir, exist_ok=True)
-    os.makedirs("/var/lib/pylos", exist_ok=True)
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
     if not os.path.exists(CONFIG_PATH):
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
@@ -93,15 +93,15 @@ def is_whitelisted(ip_str: str, whitelist_networks: List[str]) -> bool:
 @lru_cache(maxsize=2048)
 def get_country_code(ip: str) -> str:
     """Fetch and cache the 2-letter ISO country code for an IP."""
-    if ip.startswith(("192.168.", "10.", "172.", "127.", "::1")):
-        return "LOCAL"
     try:
+        if not ipaddress.ip_address(ip).is_global:
+            return "LOCAL"
         url = f"http://ip-api.com/json/{ip}?fields=countryCode"
         req = urllib.request.Request(url, headers={'User-Agent': 'pylos-daemon'})
         with urllib.request.urlopen(req, timeout=2) as response:
             data = json.loads(response.read().decode())
             return data.get("countryCode", "UNKNOWN")
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught  # a lookup failure must never kill the daemon
         return "UNKNOWN"
 
 class DatabaseManager:
@@ -240,7 +240,10 @@ class SSHLogMonitor:
     def read_line(self, timeout=1.0) -> str:
         ready, _, _ = select.select([self.process.stdout], [], [], timeout)
         if ready:
-            return self.process.stdout.readline()
+            line = self.process.stdout.readline()
+            if not line:  # EOF: journalctl died; exit so systemd restarts us instead of spinning
+                sys.exit("[FATAL] journalctl exited unexpectedly.")
+            return line
         return ""
 
     def terminate(self):
@@ -299,7 +302,9 @@ def run_daemon():
         if line:
             match = FAIL_REGEX.search(line)
             if match:
-                ip = match.group("ip")
+                ip = validate_ip(match.group("ip"))
+                if not ip:
+                    continue
                 if is_whitelisted(ip, cfg["whitelist"]):
                     print(f"[LOG] Ignored failed attempt from whitelisted IP: {ip}")
                     continue

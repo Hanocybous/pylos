@@ -1,7 +1,6 @@
 import os
-import time
 import sys
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import pylos
@@ -14,7 +13,7 @@ class DummyMonitorBanOnce:
         self.attempts = attempts
         self.count = 0
 
-    def read_line(self, timeout=1.0):
+    def read_line(self, **_kwargs):
         if self.count < self.attempts:
             self.count += 1
             return f"Failed password for invalid user admin from {self.ip} port 2222 ssh2"
@@ -29,7 +28,7 @@ class DummyMonitorGeoIP:
         self.ip = ip
         self.count = 0
 
-    def read_line(self, timeout=1.0):
+    def read_line(self, **_kwargs):
         if self.count == 0:
             self.count += 1
             return f"Failed password for invalid user admin from {self.ip} port 2222 ssh2"
@@ -42,7 +41,7 @@ class DummyMonitorGeoIP:
 @patch('pylos.ensure_environment')
 @patch('pylos.signal.signal')
 @patch('pylos.os.geteuid', return_value=0, create=True)
-def test_run_daemon_progressive_ban(mock_euid, mock_signal, mock_env, tmp_path):
+def test_run_daemon_progressive_ban(_euid, _signal, _env, tmp_path):
     db_file = tmp_path / 'pylos.db'
 
     with patch('pylos.DB_PATH', str(db_file)):
@@ -79,7 +78,7 @@ def test_run_daemon_progressive_ban(mock_euid, mock_signal, mock_env, tmp_path):
 @patch('pylos.ensure_environment')
 @patch('pylos.signal.signal')
 @patch('pylos.os.geteuid', return_value=0, create=True)
-def test_run_daemon_geoip_instant_ban(mock_euid, mock_signal, mock_env, tmp_path):
+def test_run_daemon_geoip_instant_ban(_euid, _signal, _env, tmp_path):
     db_file = tmp_path / 'pylos_geo.db'
 
     with patch('pylos.DB_PATH', str(db_file)):
@@ -108,4 +107,4 @@ def test_run_daemon_geoip_instant_ban(mock_euid, mock_signal, mock_env, tmp_path
                 bans = db.get_active_bans()
                 assert any('203.0.113.50' == row['ip'] for row in bans)
                 # GeoIP bans are recorded with a long duration in the code (10 years)
-                assert any('GeoIP Block' in (row['reason'] or '') for row in db._get_connection().execute('SELECT reason FROM ban_history').fetchall())
+                assert any('GeoIP Block' in row['reason'] for row in bans)

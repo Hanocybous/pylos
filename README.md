@@ -21,11 +21,36 @@ The easiest way to install Pylos is via the pre-compiled Debian package availabl
 
 ```bash
 # 1. Download the latest release (update the version number as needed)
-wget [https://github.com/Hanocybous/pylos/releases/download/v1.4.0/pylos_1.4.0_all.deb](https://github.com/Hanocybous/pylos/releases/download/v1.4.0/pylos_1.4.0_all.deb)
+wget https://github.com/Hanocybous/pylos/releases/download/v1.4.0/pylos_1.4.0_all.deb
 
-# 2. Install the package
-sudo dpkg -i pylos_1.4.0_all.deb
-sudo apt-get install -f
+# 2. Install it (pulls in dependencies, then enables and starts the service)
+sudo apt install ./pylos_1.4.0_all.deb
+```
 
-# 3. Enable and start the daemon
-sudo systemctl enable --now pylos
+## Usage
+
+```bash
+pylos status                  # config summary and ban statistics
+pylos list                    # active bans
+sudo pylos ban 203.0.113.7 -d 600
+sudo pylos unban 203.0.113.7
+sudo systemctl reload pylos   # re-read the config without restarting
+```
+
+## Configuration
+
+Config lives in `/etc/pylos/config.json` and is created with defaults on first run. See [`contrib/config.example.json`](contrib/config.example.json) for every key. Missing keys fall back to the defaults.
+
+GeoIP blocking (on by default) sends each attacking IP to `ip-api.com` over HTTP. Set `"geoip_blocking": false` if you don't want any outbound lookups.
+
+Ban history is stored in `/var/lib/pylos/pylos.db`.
+
+## Development
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+pylint -d C,R $(git ls-files '*.py')
+```
+
+Releases are built by pushing a `vX.Y.Z` tag. See [`packaging/README.md`](packaging/README.md).
