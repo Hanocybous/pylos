@@ -7,6 +7,8 @@ Type=simple
 ExecStart=/usr/bin/pylos daemon
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
+# Without this, print() output is block-buffered and log lines reach the journal late.
+Environment=PYTHONUNBUFFERED=1
 
 # Sandbox: Pylos only needs to edit the firewall, read the journal and write its own files.
 NoNewPrivileges=yes
